@@ -9,7 +9,7 @@ find_package(CUDA REQUIRED)
 set (INCLUDE_DIR 
 thirdparty/volk
 thirdparty/Vulkan-Headers/include
-thirdparty/glm
+thirdparty/glm/glm
 .
 )
 
