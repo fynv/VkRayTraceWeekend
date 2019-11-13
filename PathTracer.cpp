@@ -841,8 +841,6 @@ PathTracer::PathTracer(Image* target, const std::vector<const TriangleMesh*>& tr
 	ctx.command_buffer_create(*m_cmdbuf);
 
 	_rand_init_cuda();
-
-	m_num_iter = 100;
 }
 
 PathTracer::~PathTracer()
@@ -877,7 +875,7 @@ PathTracer::~PathTracer()
 	delete m_triangleMeshes;
 }
 
-void PathTracer::_update_args()
+void PathTracer::_update_args(int num_iter)
 {
 	Context& ctx = Context::get_context();
 
@@ -893,7 +891,7 @@ void PathTracer::_update_args()
 	raygen_params.upper_left = glm::vec4(m_upper_left, 1.0f);
 	raygen_params.ux = glm::vec4(m_ux, 1.0f);
 	raygen_params.uy = glm::vec4(m_uy, 1.0f);
-	raygen_params.num_iter = m_num_iter;
+	raygen_params.num_iter = num_iter;
 
 	ctx.buffer_upload(*m_params_raygen, &raygen_params);
 }
@@ -919,12 +917,11 @@ void PathTracer::set_camera(glm::vec3 lookfrom, glm::vec3 lookat, glm::vec3 vup,
 	m_upper_left = plane_center - axis_x * half_width + axis_y * half_height;
 	m_ux = size_pix * axis_x;
 	m_uy = -size_pix * axis_y;
-
-	_update_args();
 }
 
-void PathTracer::trace()
+void PathTracer::trace(int num_iter)
 {
+	_update_args(num_iter);
 	Context& ctx = Context::get_context();
 
 	m_target->clear();
@@ -934,7 +931,7 @@ void PathTracer::trace()
 	vkCmdBindPipeline(m_cmdbuf->buf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rt_pipeline->pipeline);
 	vkCmdBindDescriptorSets(m_cmdbuf->buf, VK_PIPELINE_BIND_POINT_RAY_TRACING_NV, m_rt_pipeline->pipelineLayout, 0, 1, &m_args->descriptorSet, 0, nullptr);
 
-	for (int i = 0; i < m_num_iter; i++)
+	for (int i = 0; i < num_iter; i++)
 	{
 		vkCmdTraceRaysNV(m_cmdbuf->buf,
 			m_rt_pipeline->shaderBindingTableBuffer, 0,

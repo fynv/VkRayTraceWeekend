@@ -100,11 +100,10 @@ public:
 	~PathTracer();
 
 	void set_camera(glm::vec3 lookfrom, glm::vec3 lookat, glm::vec3 vup, float vfov);
-	void set_num_iter(int n) { m_num_iter = n;  _update_args(); }
-	void trace();
+	void trace(int num_iter = 100);
 
 private:
-	void _update_args();
+	void _update_args(int num_iter);
 
 	void _tlas_create(const std::vector<const TriangleMesh*>& triangle_meshes, const std::vector<const UnitSphere*>& spheres);
 	void _args_create();
@@ -134,9 +133,6 @@ private:
 	RTPipelineResource* m_rt_pipeline;
 	ComputePipelineResource* m_comp_pipeline;
 	CommandBufferResource* m_cmdbuf;
-
-	int m_num_iter;
-
 	
 };
 

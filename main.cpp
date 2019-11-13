@@ -97,7 +97,6 @@ int main()
 	Image target(view_width, view_height);
 	PathTracer pt(&target, { &cube0, &cube1, &cube2, &cube3 }, { &sphere4, &sphere5, &sphere6 });
 	pt.set_camera({ 0.0f, 8.0f, 8.0f }, { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f }, 45.0f);
-	pt.set_num_iter(100);
 	pt.trace();
 
 	float* hbuffer = (float*)malloc(view_width * view_height * sizeof(float)*4);
