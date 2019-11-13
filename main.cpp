@@ -66,10 +66,11 @@ int main()
 	const int view_width = 800;
 	const int view_height = 400;
 
-	glm::mat4x4 identity;
+	glm::mat4x4 identity = glm::identity<glm::mat4x4>();
 
 	glm::mat4x4 model0 = glm::translate(identity, glm::vec3(0.0, 1.0, -2.0));
 	model0 = glm::rotate(model0, 45.0f / 180.0f*PI, glm::vec3(0.0, 1.0, 0.0f));
+
 	TriangleMesh cube0(model0, cube_vertices, cube_indices, { 0.8, 0.6, 0.8 });
 
 	glm::mat4x4 model1 = glm::translate(identity, glm::vec3(4.0, 1.0, -2.0));
