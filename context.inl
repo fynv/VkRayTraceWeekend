@@ -37,11 +37,13 @@ public:
 	void buffer_create(BufferResource& buffer, VkDeviceSize size) const
 	{
 		buffer.size = size;
-		_allocate_buffer(buffer.buf, buffer.mem, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		if (size>0)
+			_allocate_buffer(buffer.buf, buffer.mem, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	}
 
 	void buffer_upload(BufferResource& buffer, const void* hdata) const
 	{
+		if (buffer.size == 0) return;
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
 		_allocate_buffer(stagingBuffer, stagingBufferMemory, buffer.size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -86,6 +88,7 @@ public:
 
 	void buffer_zero(BufferResource& buffer) const
 	{
+		if (buffer.size == 0) return;
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
 		_allocate_buffer(stagingBuffer, stagingBufferMemory, buffer.size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -132,6 +135,7 @@ public:
 	void buffer_download(const BufferResource& buffer, void* hdata, VkDeviceSize begin = 0, VkDeviceSize end = (VkDeviceSize)(-1))
 	{
 		if (end > buffer.size) end = buffer.size;
+		if (end <= begin) return;
 
 		VkBuffer stagingBuffer;
 		VkDeviceMemory stagingBufferMemory;
@@ -178,6 +182,7 @@ public:
 
 	uint64_t buffer_get_device_address(const BufferResource& buffer) const
 	{
+		if (buffer.size == 0) return 0;
 		VkBufferDeviceAddressInfoEXT bufAdrInfo = {};
 		bufAdrInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO_EXT;
 		bufAdrInfo.buffer = buffer.buf;
@@ -186,7 +191,8 @@ public:
 
 	void buffer_release(BufferResource& buffer) const
 	{
-		_release_buffer(buffer.buf, buffer.mem);
+		if (buffer.size > 0)
+			_release_buffer(buffer.buf, buffer.mem);
 	}
 
 	void command_buffer_create(CommandBufferResource& cmdBuf, bool one_time_submit = false) const
@@ -233,6 +239,8 @@ public:
 
 	void _allocate_buffer(VkBuffer& buf, VkDeviceMemory& mem, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags flags) const
 	{
+		if (size == 0) return;
+
 		VkBufferCreateInfo bufferCreateInfo = {};
 		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 		bufferCreateInfo.size = size;

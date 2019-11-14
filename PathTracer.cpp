@@ -564,7 +564,9 @@ void PathTracer::_args_create()
 	descriptorBufferInfo_rand_states.buffer = m_rand_states->buf;
 	descriptorBufferInfo_rand_states.range = VK_WHOLE_SIZE;
 
-	VkWriteDescriptorSet writeDescriptorSet[5] = { {}, {}, {}, {}, {} };
+	std::vector<VkWriteDescriptorSet> writeDescriptorSet(3);
+
+	writeDescriptorSet[0] = {};
 	writeDescriptorSet[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDescriptorSet[0].dstSet = m_args->descriptorSet;
 	writeDescriptorSet[0].dstBinding = 0;
@@ -572,6 +574,7 @@ void PathTracer::_args_create()
 	writeDescriptorSet[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV;
 	writeDescriptorSet[0].pNext = &descriptorAccelerationStructureInfo;
 
+	writeDescriptorSet[1] = {};
 	writeDescriptorSet[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDescriptorSet[1].dstSet = m_args->descriptorSet;
 	writeDescriptorSet[1].dstBinding = 1;
@@ -579,29 +582,39 @@ void PathTracer::_args_create()
 	writeDescriptorSet[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 	writeDescriptorSet[1].pBufferInfo = &descriptorBufferInfo_raygen;
 
+	writeDescriptorSet[2] = {};
 	writeDescriptorSet[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	writeDescriptorSet[2].dstSet = m_args->descriptorSet;
-	writeDescriptorSet[2].dstBinding = 2;
+	writeDescriptorSet[2].dstBinding = 4;
 	writeDescriptorSet[2].descriptorCount = 1;
 	writeDescriptorSet[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	writeDescriptorSet[2].pBufferInfo = &descriptorBufferInfo_triangle_mesh;
+	writeDescriptorSet[2].pBufferInfo = &descriptorBufferInfo_rand_states;
 
-	writeDescriptorSet[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSet[3].dstSet = m_args->descriptorSet;
-	writeDescriptorSet[3].dstBinding = 3;
-	writeDescriptorSet[3].descriptorCount = 1;
-	writeDescriptorSet[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	writeDescriptorSet[3].pBufferInfo = &descriptorBufferInfo_sphere;
+	if (m_triangleMeshes->size > 0)
+	{
+		VkWriteDescriptorSet write_mesh = {};
+		write_mesh.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write_mesh.dstSet = m_args->descriptorSet;
+		write_mesh.dstBinding = 2;
+		write_mesh.descriptorCount = 1;
+		write_mesh.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		write_mesh.pBufferInfo = &descriptorBufferInfo_triangle_mesh;
+		writeDescriptorSet.push_back(write_mesh);
+	}
 
-	writeDescriptorSet[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-	writeDescriptorSet[4].dstSet = m_args->descriptorSet;
-	writeDescriptorSet[4].dstBinding = 4;
-	writeDescriptorSet[4].descriptorCount = 1;
-	writeDescriptorSet[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	writeDescriptorSet[4].pBufferInfo = &descriptorBufferInfo_rand_states;
-	   
-	vkUpdateDescriptorSets(ctx.device(), 5, writeDescriptorSet, 0, nullptr);
+	if (m_spheres->size > 0)
+	{
+		VkWriteDescriptorSet write_sphere = {};
+		write_sphere.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		write_sphere.dstSet = m_args->descriptorSet;
+		write_sphere.dstBinding = 3;
+		write_sphere.descriptorCount = 1;
+		write_sphere.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		write_sphere.pBufferInfo = &descriptorBufferInfo_sphere;
+		writeDescriptorSet.push_back(write_sphere);
+	}	
 
+	vkUpdateDescriptorSets(ctx.device(), (uint32_t)writeDescriptorSet.size(), writeDescriptorSet.data(), 0, nullptr);
 }
 
 void PathTracer::_args_release()
