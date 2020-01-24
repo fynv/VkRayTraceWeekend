@@ -17,12 +17,13 @@ add_subdirectory(thirdparty/volk)
 
 set (SOURCE
 main.cpp
-PathTracer.cpp
 rand_state_init.cu
+PathTracer.cpp
 )
 
 set (HEADER
 context.inl
+RNGState.h
 xor_wow_data.hpp
 rand_state_init.hpp
 PathTracer.h

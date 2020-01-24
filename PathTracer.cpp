@@ -828,6 +828,40 @@ void PathTracer::_comp_pipeline_release()
 
 #include "rand_state_init.hpp"
 
+void PathTracer::_rand_init_cpu()
+{
+	unsigned count = unsigned(m_target->width()*m_target->height());
+	RNGState* states = new RNGState[count];
+
+	RNG rng;
+	rng.p_sequence_matrix = xorwow_sequence_matrix;
+	rng.p_offset_matrix = xorwow_offset_matrix;
+
+	for (int i = 0; i < m_target->width()*m_target->height(); i++)
+		rng.state_init(1234, i, 0, states[i]);
+
+	Context& ctx = Context::get_context();
+	ctx.buffer_upload(*m_rand_states, states);
+
+	delete[] states;
+}
+
+void h_rand_init(unsigned count, RNGState* h_states);
+
+void PathTracer::_rand_init_cuda()
+{
+	unsigned count = unsigned(m_target->width()*m_target->height());
+	RNGState* h_states = new RNGState[count];
+
+	h_rand_init(count, h_states);
+
+	Context& ctx = Context::get_context();
+	ctx.buffer_upload(*m_rand_states, h_states);
+
+	delete[] h_states;
+}
+
+
 PathTracer::PathTracer(Image* target, const std::vector<const TriangleMesh*>& triangle_meshes, const std::vector<const UnitSphere*>& spheres)
 {
 	Context& ctx = Context::get_context();

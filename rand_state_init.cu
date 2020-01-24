@@ -2,44 +2,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
-#include "context.inl"
-#include "PathTracer.h"
 #include "xor_wow_data.hpp"
-
-struct V5
-{
-	unsigned v0;
-	unsigned v1;
-	unsigned v2;
-	unsigned v3;
-	unsigned v4;
-};
-
-struct RNGState
-{
-	V5 v;
-	unsigned d;
-
-	__device__ inline unsigned rand()
-	{
-		unsigned int t;
-		t = (v.v0 ^ (v.v0 >> 2));
-		v.v0 = v.v1;
-		v.v1 = v.v2;
-		v.v2 = v.v3;
-		v.v3 = v.v4;
-		v.v4 = (v.v4 ^ (v.v4 << 4)) ^ (t ^ (t << 1));
-		d += 362437;
-		return v.v4 + d;
-	}
-
-	__device__ inline double rand01()
-	{
-		unsigned long long urand = rand();
-		return (double)urand / (double)((unsigned long long)1 << 32);
-	}
-
-};
+#include "RNGState.h"
 
 struct RNG
 {
@@ -188,15 +152,13 @@ void g_rand_init(RNG rng, RNGState* d_states, unsigned count)
 	rng.state_init(1234, id, 0, d_states[id]);
 }
 
-void PathTracer::_rand_init_cuda()
+void h_rand_init(unsigned count, RNGState* h_states)
 {
 	RNG rng;
 	cudaMalloc(&rng.d_sequence_matrix, sizeof(unsigned) * 800 * 8);
 	cudaMalloc(&rng.d_offset_matrix, sizeof(unsigned) * 800 * 8);
 	cudaMemcpy(rng.d_sequence_matrix, xorwow_sequence_matrix, sizeof(unsigned) * 800 * 8, cudaMemcpyHostToDevice);
 	cudaMemcpy(rng.d_offset_matrix, xorwow_offset_matrix, sizeof(unsigned) * 800 * 8, cudaMemcpyHostToDevice);
-
-	unsigned count = unsigned(m_target->width()*m_target->height());
 
 	RNGState* d_states;
 	cudaMalloc(&d_states, sizeof(RNGState)* count);
@@ -207,13 +169,6 @@ void PathTracer::_rand_init_cuda()
 	cudaFree(rng.d_offset_matrix);
 	cudaFree(rng.d_sequence_matrix);
 
-	RNGState* h_states = new RNGState[count];
-	cudaMemcpy(h_states, d_states, sizeof(RNGState)* count, cudaMemcpyDeviceToHost);	   
-	cudaFree(d_states);	
-	
-	Context& ctx = Context::get_context();
-	ctx.buffer_upload(*m_rand_states, h_states);
-	
-	delete[] h_states;
+	cudaMemcpy(h_states, d_states, sizeof(RNGState)* count, cudaMemcpyDeviceToHost);
+	cudaFree(d_states);
 }
-

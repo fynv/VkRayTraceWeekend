@@ -1,20 +1,5 @@
 #include "xor_wow_data.hpp"
-
-struct V5
-{
-	unsigned v0;
-	unsigned v1;
-	unsigned v2;
-	unsigned v3;
-	unsigned v4;
-};
-
-struct RNGState
-{
-	V5 v;
-	unsigned d;
-};
-
+#include "RNGState.h"
 
 struct RNG
 {
@@ -157,20 +142,3 @@ private:
 
 };
 
-
-
-void PathTracer::_rand_init_cpu()
-{
-	RNG rng;
-	rng.p_sequence_matrix = xorwow_sequence_matrix;
-	rng.p_offset_matrix = xorwow_offset_matrix;
-
-	RNGState* states = new RNGState[m_target->width()*m_target->height()];
-	for (int i = 0; i< m_target->width()*m_target->height(); i++)
-		rng.state_init(1234, i, 0, states[i]);
-
-	Context& ctx = Context::get_context();
-	ctx.buffer_upload(*m_rand_states, states);
-
-	delete[] states;
-}
