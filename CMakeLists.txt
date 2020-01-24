@@ -1,7 +1,5 @@
 cmake_minimum_required (VERSION 3.0)
 
-add_subdirectory(thirdparty/volk)
-
 project(VkRayTraceWeekend)
 
 find_package(CUDA REQUIRED)
@@ -12,6 +10,10 @@ thirdparty/Vulkan-Headers/include
 thirdparty/glm/glm
 .
 )
+
+include_directories(${INCLUDE_DIR})
+
+add_subdirectory(thirdparty/volk)
 
 set (SOURCE
 main.cpp
@@ -38,7 +40,6 @@ add_definitions(-std=c++14)
 add_compile_options(-fPIC)
 endif()
 
-include_directories(${INCLUDE_DIR})
 add_definitions(${DEFINES})
 
 cuda_add_executable(test ${SOURCE} ${HEADER})

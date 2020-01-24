@@ -1,4 +1,7 @@
 #include "PathTracer.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <memory.h>
 #include <glm.hpp>
 #include <gtc/matrix_transform.hpp>
 
