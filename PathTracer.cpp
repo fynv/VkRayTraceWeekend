@@ -1,3 +1,11 @@
+#ifdef _WIN64
+#include <windows.h>
+#include <VersionHelpers.h>
+#endif
+
+#include "volk.h"
+
+#include <cuda_runtime.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -846,19 +854,80 @@ void PathTracer::_rand_init_cpu()
 	delete[] states;
 }
 
+#ifdef _WIN64 // For windows
+HANDLE getVkMemHandle(BufferResource& buf, VkExternalMemoryHandleTypeFlagsKHR externalMemoryHandleType)
+{
+	Context& ctx = Context::get_context();
+
+	HANDLE handle;
+
+	VkMemoryGetWin32HandleInfoKHR vkMemoryGetWin32HandleInfoKHR = {};
+	vkMemoryGetWin32HandleInfoKHR.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+	vkMemoryGetWin32HandleInfoKHR.pNext = NULL;
+	vkMemoryGetWin32HandleInfoKHR.memory = buf.mem;
+	vkMemoryGetWin32HandleInfoKHR.handleType = (VkExternalMemoryHandleTypeFlagBitsKHR)externalMemoryHandleType;
+
+	vkGetMemoryWin32HandleKHR(ctx.device(), &vkMemoryGetWin32HandleInfoKHR, &handle);
+	return handle;
+}
+#else
+int getVkMemHandle(BufferResource& buf, VkExternalMemoryHandleTypeFlagsKHR externalMemoryHandleType)
+{
+	Context& ctx = Context::get_context();
+
+	if (externalMemoryHandleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT) {
+		int fd;
+
+		VkMemoryGetFdInfoKHR vkMemoryGetFdInfoKHR = {};
+		vkMemoryGetFdInfoKHR.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+		vkMemoryGetFdInfoKHR.pNext = NULL;
+		vkMemoryGetFdInfoKHR.memory = buf.mem;
+		vkMemoryGetFdInfoKHR.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
+
+		vkGetMemoryFdKHR(ctx.device(), &vkMemoryGetFdInfoKHR, &fd);
+
+		return fd;
+	}
+	return -1;
+}
+#endif
+
+void cu_rand_init(unsigned count, RNGState* d_states);
 void h_rand_init(unsigned count, RNGState* h_states);
 
 void PathTracer::_rand_init_cuda()
 {
 	unsigned count = unsigned(m_target->width()*m_target->height());
+
+	cudaExternalMemoryHandleDesc cudaExtMemHandleDesc = {};
+#ifdef _WIN64
+	cudaExtMemHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueWin32Kmt;
+	cudaExtMemHandleDesc.handle.win32.handle = getVkMemHandle(*m_rand_states, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT);
+#else
+	cudaExtMemHandleDesc.type = cudaExternalMemoryHandleTypeOpaqueFd;
+	cudaExtMemHandleDesc.handle.fd = getVkMemHandle(*m_rand_states, VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT);
+#endif
+	cudaExtMemHandleDesc.size = sizeof(RNGState) * count;
+
+	cudaExternalMemory_t cudaExtMemVertexBuffer;
+	cudaImportExternalMemory(&cudaExtMemVertexBuffer, &cudaExtMemHandleDesc);
+
+	cudaExternalMemoryBufferDesc cudaExtBufferDesc;
+	cudaExtBufferDesc.offset = 0;
+	cudaExtBufferDesc.size = sizeof(RNGState) * count;
+	cudaExtBufferDesc.flags = 0;
+
+	RNGState* d_states;
+	cudaExternalMemoryGetMappedBuffer((void**)&d_states, cudaExtMemVertexBuffer, &cudaExtBufferDesc);
+	cu_rand_init(count, d_states);
+	cudaDestroyExternalMemory(cudaExtMemVertexBuffer);
+
+	/*
 	RNGState* h_states = new RNGState[count];
-
 	h_rand_init(count, h_states);
-
 	Context& ctx = Context::get_context();
 	ctx.buffer_upload(*m_rand_states, h_states);
-
-	delete[] h_states;
+	delete[] h_states;*/
 }
 
 
@@ -875,7 +944,7 @@ PathTracer::PathTracer(Image* target, const std::vector<const TriangleMesh*>& tr
 	ctx.buffer_create(*m_params_raygen, sizeof(RayGenParams));
 
 	m_rand_states = new BufferResource;
-	ctx.buffer_create(*m_rand_states, sizeof(unsigned) * 6 * m_target->width()*m_target->height());
+	ctx.buffer_create(*m_rand_states, sizeof(RNGState) * m_target->width()*m_target->height(), true);
 	
 	m_args = new ArgumentResource;
 	m_rt_pipeline = new RTPipelineResource;

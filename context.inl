@@ -11,7 +11,6 @@
 #define PI 3.1415926f
 #endif
 
-
 struct BufferResource
 {
 	VkDeviceSize size;
@@ -34,11 +33,16 @@ public:
 		return ctx;
 	}
 
-	void buffer_create(BufferResource& buffer, VkDeviceSize size) const
+	void buffer_create(BufferResource& buffer, VkDeviceSize size, bool ext_mem = false) const
 	{
 		buffer.size = size;
-		if (size>0)
-			_allocate_buffer(buffer.buf, buffer.mem, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		if (size > 0)
+		{
+			if (ext_mem)
+				_allocate_buffer_ex(buffer.buf, buffer.mem, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+			else
+				_allocate_buffer(buffer.buf, buffer.mem, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+		}
 	}
 
 	void buffer_upload(BufferResource& buffer, const void* hdata) const
@@ -275,6 +279,54 @@ public:
 		vkBindBufferMemory(m_device, buf, mem, 0);
 	}
 
+	void _allocate_buffer_ex(VkBuffer& buf, VkDeviceMemory& mem, size_t size, VkBufferUsageFlags usage, VkMemoryPropertyFlags flags) const
+	{
+		if (size == 0) return;
+
+		VkBufferCreateInfo bufferCreateInfo = {};
+		bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferCreateInfo.size = size;
+		bufferCreateInfo.usage = usage;
+		bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		vkCreateBuffer(m_device, &bufferCreateInfo, nullptr, &buf);
+
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(m_device, buf, &memRequirements);
+
+		VkPhysicalDeviceMemoryProperties memProperties;
+		vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+
+		uint32_t memoryTypeIndex = VK_MAX_MEMORY_TYPES;
+		for (uint32_t k = 0; k < memProperties.memoryTypeCount; k++)
+		{
+			if ((memRequirements.memoryTypeBits & (1 << k)) == 0) continue;
+			if ((flags & memProperties.memoryTypes[k].propertyFlags) == flags)
+			{
+				memoryTypeIndex = k;
+				break;
+			}
+		}
+
+		VkExportMemoryAllocateInfoKHR vulkanExportMemoryAllocateInfoKHR = {};
+		vulkanExportMemoryAllocateInfoKHR.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+#ifdef _WIN64
+		vulkanExportMemoryAllocateInfoKHR.pNext = NULL;
+		vulkanExportMemoryAllocateInfoKHR.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+#else
+		vulkanExportMemoryAllocateInfoKHR.pNext = NULL;
+		vulkanExportMemoryAllocateInfoKHR.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+#endif
+		VkMemoryAllocateInfo memoryAllocateInfo = {};
+		memoryAllocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		memoryAllocateInfo.pNext = &vulkanExportMemoryAllocateInfoKHR;
+		memoryAllocateInfo.allocationSize = memRequirements.size;
+		memoryAllocateInfo.memoryTypeIndex = memoryTypeIndex;
+
+		vkAllocateMemory(m_device, &memoryAllocateInfo, nullptr, &mem);
+		vkBindBufferMemory(m_device, buf, mem, 0);
+	}
+
 	void _release_buffer(VkBuffer& buf, VkDeviceMemory& mem) const
 	{
 		vkDestroyBuffer(m_device, buf, nullptr);
@@ -304,12 +356,15 @@ private:
 			appInfo.engineVersion = VK_MAKE_VERSION(1, 1, 0);
 			appInfo.apiVersion = VK_API_VERSION_1_1;
 
-			const char* name_extensions[] = { VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME };
+			const char* name_extensions[] = { 
+				VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+				VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME
+			};
 
 			VkInstanceCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 			createInfo.pApplicationInfo = &appInfo;
-			createInfo.enabledExtensionCount = 1;
+			createInfo.enabledExtensionCount = 2;
 			createInfo.ppEnabledExtensionNames = name_extensions;
 			if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) return false;
 		}
@@ -356,13 +411,23 @@ private:
 			queueCreateInfo.queueCount = 1;
 			queueCreateInfo.pQueuePriorities = &m_queuePriority;
 
-			const char* name_extensions[] = { VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME, VK_NV_RAY_TRACING_EXTENSION_NAME };
+			const char* name_extensions[] = {
+				VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+				VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
+				VK_NV_RAY_TRACING_EXTENSION_NAME,
+				VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
+			#ifdef _WIN64
+				VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
+			#else
+				VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
+			#endif
+			};
 
 			VkDeviceCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 			createInfo.pQueueCreateInfos = &queueCreateInfo;
 			createInfo.queueCreateInfoCount = 1;
-			createInfo.enabledExtensionCount = 3;
+			createInfo.enabledExtensionCount = 5;
 			createInfo.ppEnabledExtensionNames = name_extensions;
 			if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS) return false;
 		}

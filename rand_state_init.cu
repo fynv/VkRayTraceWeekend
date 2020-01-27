@@ -152,7 +152,7 @@ void g_rand_init(RNG rng, RNGState* d_states, unsigned count)
 	rng.state_init(1234, id, 0, d_states[id]);
 }
 
-void h_rand_init(unsigned count, RNGState* h_states)
+void cu_rand_init(unsigned count, RNGState* d_states)
 {
 	RNG rng;
 	cudaMalloc(&rng.d_sequence_matrix, sizeof(unsigned) * 800 * 8);
@@ -160,14 +160,21 @@ void h_rand_init(unsigned count, RNGState* h_states)
 	cudaMemcpy(rng.d_sequence_matrix, xorwow_sequence_matrix, sizeof(unsigned) * 800 * 8, cudaMemcpyHostToDevice);
 	cudaMemcpy(rng.d_offset_matrix, xorwow_offset_matrix, sizeof(unsigned) * 800 * 8, cudaMemcpyHostToDevice);
 
-	RNGState* d_states;
-	cudaMalloc(&d_states, sizeof(RNGState)* count);
-
 	unsigned blocks = (count + 127) / 128;
 	g_rand_init << < blocks, 128 >> > (rng, d_states, count);
 
 	cudaFree(rng.d_offset_matrix);
 	cudaFree(rng.d_sequence_matrix);
+
+}
+
+void h_rand_init(unsigned count, RNGState* h_states)
+{
+
+	RNGState* d_states;
+	cudaMalloc(&d_states, sizeof(RNGState)* count);	
+
+	cu_rand_init(count, d_states);
 
 	cudaMemcpy(h_states, d_states, sizeof(RNGState)* count, cudaMemcpyDeviceToHost);
 	cudaFree(d_states);
