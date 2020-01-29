@@ -15,7 +15,7 @@ public:
 	AccelerationResource* get_blas() const { return m_blas; }
 
 	Geometry(const glm::mat4x4& model, glm::vec3 color);
-	~Geometry();
+	virtual ~Geometry();
 
 protected:
 	glm::vec3 m_color;
@@ -40,7 +40,7 @@ public:
 	BufferResource* index_buffer() const { return m_indexBuffer; }
 	
 	TriangleMesh(const glm::mat4x4& model, const std::vector<Vertex>& vertices, const std::vector<unsigned>& indices, glm::vec3 color = { 1.0f, 1.0f, 1.0f });
-	~TriangleMesh();
+	virtual ~TriangleMesh();
 
 private:
 	void _blas_create();
@@ -59,7 +59,7 @@ public:
 	BufferResource* aabb_buffer() const { return m_aabb_buf; }
 
 	UnitSphere(const glm::mat4x4& model, glm::vec3 color = { 1.0f, 1.0f, 1.0f });
-	~UnitSphere();
+	virtual ~UnitSphere();
 
 
 private:
