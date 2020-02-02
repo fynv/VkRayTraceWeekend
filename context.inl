@@ -24,6 +24,12 @@ struct CommandBufferResource
 };
 
 
+static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData)
+{
+	printf("validation layer: %s\n", pCallbackData->pMessage);
+	return VK_FALSE;
+}
+
 class Context
 {
 public:
@@ -334,8 +340,11 @@ public:
 	}
 
 private:
+	VkDebugUtilsMessengerEXT m_debugMessenger;
 	VkInstance m_instance;
 	VkPhysicalDevice m_physicalDevice;
+	VkPhysicalDeviceBufferDeviceAddressFeaturesEXT m_bufferDeviceAddressFeatures;
+	VkPhysicalDeviceFeatures2 m_features2;
 	VkPhysicalDeviceRayTracingPropertiesNV m_raytracingProperties;
 	uint32_t m_graphicsQueueFamily;
 	float m_queuePriority;
@@ -358,15 +367,38 @@ private:
 
 			const char* name_extensions[] = { 
 				VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-				VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME
+				VK_KHR_EXTERNAL_MEMORY_CAPABILITIES_EXTENSION_NAME,
+				VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 			};
+
+			char str_validationLayers[] = "VK_LAYER_KHRONOS_validation";
+			const char* validationLayers[] = { str_validationLayers };
+
+			VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
+			debugCreateInfo = {};
+			debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+			debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+			debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+			debugCreateInfo.pfnUserCallback = debugCallback;
 
 			VkInstanceCreateInfo createInfo = {};
 			createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 			createInfo.pApplicationInfo = &appInfo;
-			createInfo.enabledExtensionCount = 2;
+			createInfo.enabledExtensionCount = 3;
 			createInfo.ppEnabledExtensionNames = name_extensions;
+
+#ifdef _DEBUG
+			createInfo.enabledLayerCount = 1;
+			createInfo.ppEnabledLayerNames = validationLayers;
+			createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debugCreateInfo;
+#endif
+
 			if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) return false;
+
+#ifdef _DEBUG
+			PFN_vkCreateDebugUtilsMessengerEXT vkCreateDebugUtilsMessengerEXT = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+			vkCreateDebugUtilsMessengerEXT(m_instance, &debugCreateInfo, nullptr, &m_debugMessenger);
+#endif
 		}
 		volkLoadInstance(m_instance);
 
@@ -379,6 +411,16 @@ private:
 			vkEnumeratePhysicalDevices(m_instance, &deviceCount, ph_devices.data());
 			m_physicalDevice = ph_devices[0];
 		}
+
+		m_bufferDeviceAddressFeatures = {};
+		{
+			m_bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_ADDRESS_FEATURES_EXT;
+			m_features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+			m_features2.pNext = &m_bufferDeviceAddressFeatures;
+			m_features2.features = {};
+			vkGetPhysicalDeviceFeatures2(m_physicalDevice, &m_features2);
+		}
+
 
 		m_raytracingProperties = {};
 		{
@@ -411,16 +453,16 @@ private:
 			queueCreateInfo.queueCount = 1;
 			queueCreateInfo.pQueuePriorities = &m_queuePriority;
 
-			const char* name_extensions[] = {
-				VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+			const char* name_extensions[] = {				
 				VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-				VK_NV_RAY_TRACING_EXTENSION_NAME,
 				VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
 			#ifdef _WIN64
 				VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
 			#else
 				VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
 			#endif
+				VK_EXT_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+				VK_NV_RAY_TRACING_EXTENSION_NAME,		
 			};
 
 			VkDeviceCreateInfo createInfo = {};
@@ -429,6 +471,8 @@ private:
 			createInfo.queueCreateInfoCount = 1;
 			createInfo.enabledExtensionCount = 5;
 			createInfo.ppEnabledExtensionNames = name_extensions;
+			createInfo.pNext = &m_features2;
+
 			if (vkCreateDevice(m_physicalDevice, &createInfo, nullptr, &m_device) != VK_SUCCESS) return false;
 		}
 

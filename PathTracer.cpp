@@ -631,7 +631,6 @@ void PathTracer::_args_create()
 void PathTracer::_args_release()
 {
 	Context& ctx = Context::get_context();
-	vkFreeDescriptorSets(ctx.device(), m_args->descriptorPool, 1, &m_args->descriptorSet);
 	vkDestroyDescriptorPool(ctx.device(), m_args->descriptorPool, nullptr);
 	vkDestroyDescriptorSetLayout(ctx.device(), m_args->descriptorSetLayout, nullptr);
 }
@@ -1059,6 +1058,7 @@ void PathTracer::trace(int num_iter)
 			VK_NULL_HANDLE, 0, 0, m_target->width(), m_target->height(), 1);
 
 		VkMemoryBarrier memoryBarrier = {};
+		memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
 		memoryBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
 		memoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
  
